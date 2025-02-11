@@ -12,6 +12,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.vectorstores import VectorStoreRetriever
 from langchain_openai import OpenAIEmbeddings
 
+from app.custom_retriever import HybridAPIRetriever
 from app.json_loader import JSONLoader
 from app.utils import MODEL
 
@@ -67,24 +68,20 @@ class RAG:
         return data
 
     # This method is used to make the retriever inside of the class
-    def create_retriever(self) -> Union[EnsembleRetriever, VectorStoreRetriever]:
+    def create_retriever(self) -> HybridAPIRetriever:
+        """Create a custom retriever using HybridAPIRetriever with ChromaDB."""
         embeddings = OpenAIEmbeddings(disallowed_special=())
-        chroma_vectorstore = Chroma(persist_directory=self.persist_directory, collection_name=self.collection_name,
-                                    embedding_function=embeddings)
-        chroma_retriever = chroma_vectorstore.as_retriever(search_type="mmr", search_kwargs={"k": 3})
 
-        if self.documents:
-            bm25_retriever = BM25Retriever.from_documents(self.documents)
-            bm25_retriever.k = 2
-            chroma_retriever = chroma_vectorstore.as_retriever(search_kwargs={"k": 2})
-            # chroma_vectorstore = Chroma.from_documents(self.documents, embeddings, collection_name=self.collection_name,
-            #                                            persist_directory=self.persist_directory)
-            ensemble_retriever = EnsembleRetriever(
-                retrievers=[bm25_retriever, chroma_retriever], weights=[0.4, 0.6]
-            )
-            return ensemble_retriever
+        # Load Chroma vector store
+        chroma_vectorstore = Chroma(
+            persist_directory=self.persist_directory, 
+            collection_name=self.collection_name, 
+            embedding_function=embeddings
+        )
 
-        return chroma_retriever
+        # Use our custom retriever with ChromaDB
+        return HybridAPIRetriever(chroma_db=chroma_vectorstore, k=3)
+
 
     # This is the main method to use from outside of the RAG class to access the API Retrieval 
     def mq_retrieve_documents(self, queries):
