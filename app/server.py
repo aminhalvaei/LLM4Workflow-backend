@@ -1,5 +1,6 @@
 import json
 import tempfile
+import uvicorn
 from typing import Optional
 
 from fastapi import Body, FastAPI, Request, HTTPException, Form, File, Depends, Query, Path
@@ -309,6 +310,4 @@ async def delete_collection(uid: int = Depends(get_uid), collection_name: str = 
 
 
 if __name__ == "__main__":
-    import uvicorn
-
     uvicorn.run(app, host="0.0.0.0", port=8000)
