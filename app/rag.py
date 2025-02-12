@@ -93,6 +93,21 @@ class RAG:
             docs_with_score = self.retriever.invoke(query)
             for doc in docs_with_score:
                 relevant_docs.append(doc)
+        # Group documents by their names and sum their scores
+        # TODO fix the total_sum summation bug
+        grouped_docs = defaultdict(lambda: {'doc': None, 'total_score': 0})
+        for doc in relevant_docs:
+            doc_name = doc.page_content
+            doc_score = doc.metadata.get('score', 0)
+            if grouped_docs[doc_name]['doc'] is None:
+                grouped_docs[doc_name]['doc'] = doc
+                grouped_docs[doc_name]['total_score'] += doc_score
+
+        # Update the metadata with the total score
+        for doc_info in grouped_docs.values():
+            doc_info['doc'].metadata['total_score'] = doc_info['total_score']
+
+        relevant_docs = [doc_info['doc'] for doc_info in grouped_docs.values()]
         unique_union_docs = unique_union_documents(relevant_docs)
         return [{'doc': doc, 'status': 1} for doc in unique_union_docs]
 
