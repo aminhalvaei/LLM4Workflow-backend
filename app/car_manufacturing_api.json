@@ -1,0 +1,90 @@
+[
+    {
+        "name": "CarChassisAssembler",
+        "describe": "The CarChassisAssembler actor is responsible for assembling the chassis of a vehicle using robotic arms and predefined templates.",
+        "parameters": {
+          "chassisType": "The type of chassis to assemble (e.g., sedan, SUV, truck).",
+          "material": "The material used for the chassis (e.g., aluminum, steel).",
+          "weldingMode": "The welding technique used (e.g., laser, arc, spot).",
+          "qualityCheck": "Enable or disable quality inspection after assembly (true/false)."
+        },
+        "output": {
+          "assembledChassis": "The assembled chassis ready for further processing.",
+          "weldingReport": "A report detailing the welding process and its quality.",
+          "error": "An error message if assembly fails."
+        }
+      },
+      {
+        "name": "EngineInstallation",
+        "describe": "The EngineInstallation actor mounts the engine onto the vehicle's chassis and ensures correct alignment.",
+        "parameters": {
+          "engineModel": "The model of the engine being installed (e.g., V6, V8, electric motor).",
+          "torqueSettings": "The torque specifications for securing the engine.",
+          "coolingSystemCheck": "Perform a cooling system diagnostic after installation (true/false)."
+        },
+        "output": {
+          "installedEngine": "A confirmation that the engine has been successfully installed.",
+          "diagnosticReport": "A report showing cooling system test results.",
+          "error": "An error message if installation fails."
+        }
+      },
+      {
+        "name": "PaintShop",
+        "describe": "The PaintShop actor applies paint to the vehicle body based on predefined color codes and finishes.",
+        "parameters": {
+          "colorCode": "The paint color code (e.g., #FF5733 for red).",
+          "finishType": "The type of finish (e.g., matte, gloss, metallic).",
+          "coatingLayers": "The number of paint layers to apply.",
+          "dryingTime": "The time required for drying between layers (in minutes)."
+        },
+        "output": {
+          "paintedCarBody": "The painted vehicle body ready for further processing.",
+          "paintQualityReport": "A report detailing paint adhesion and finish quality.",
+          "error": "An error message if painting fails."
+        }
+      },
+      {
+        "name": "TireMounting",
+        "describe": "The TireMounting actor mounts tires onto the vehicle and checks alignment and air pressure.",
+        "parameters": {
+          "tireModel": "The tire model to be mounted (e.g., all-season, performance).",
+          "rimSize": "The diameter of the wheel rims (in inches).",
+          "pressureCheck": "Enable or disable air pressure verification (true/false).",
+          "alignmentCheck": "Perform wheel alignment verification (true/false)."
+        },
+        "output": {
+          "mountedTires": "A confirmation that the tires have been successfully mounted.",
+          "alignmentReport": "A report showing wheel alignment status.",
+          "error": "An error message if tire mounting fails."
+        }
+      },
+      {
+        "name": "VehicleInspection",
+        "describe": "The VehicleInspection actor performs quality checks on various components of the assembled vehicle.",
+        "parameters": {
+          "inspectionType": "The type of inspection to perform (e.g., safety, emissions, mechanical).",
+          "automatedScan": "Enable or disable automated scanning using cameras and sensors (true/false).",
+          "detailedReport": "Generate a detailed inspection report (true/false)."
+        },
+        "output": {
+          "inspectionStatus": "The overall inspection result (pass/fail).",
+          "detailedReport": "A comprehensive report listing any detected issues.",
+          "error": "An error message if inspection fails."
+        }
+      },
+      {
+        "name": "LogisticsScheduler",
+        "describe": "The LogisticsScheduler actor manages the transportation of manufactured vehicles to distribution centers.",
+        "parameters": {
+          "destination": "The location where the vehicle needs to be shipped.",
+          "transportMode": "The mode of transport (e.g., truck, train, ship).",
+          "priority": "The shipping priority level (e.g., standard, express).",
+          "trackingEnabled": "Enable or disable real-time tracking (true/false)."
+        },
+        "output": {
+          "scheduledDelivery": "The scheduled delivery date and tracking number.",
+          "logisticsReport": "A report detailing the transportation process.",
+          "error": "An error message if scheduling fails."
+        }
+      }
+]
