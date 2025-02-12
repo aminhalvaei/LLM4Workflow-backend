@@ -40,7 +40,8 @@ def unique_union_documents(docs: List[Document]) -> List[Document]:
 def create_rewrite_chain():
     def parse(ai_message: AIMessage) -> List[str]:
         """Split the AI message into a list of queries"""
-        return ai_message.content.strip().split("\n")
+        content_list = ai_message.content.strip().split("\n\n")
+        return content_list
 
     rewrite_chain = ChatPromptTemplate.from_template(REWRITE_QUERY_PROMPT) | MODEL | parse
     return rewrite_chain
@@ -55,10 +56,12 @@ class RAG:
         self.model = MODEL
         self.collection_name = collection_name
         self.documents = None
-        self.retriever = self.create_retriever()
         if doc_path:
             self.doc_path = Path(doc_path)
             self.documents = self.doc_loader()
+        else:
+            self.retriever = self.create_retriever()
+
 
     def doc_loader(self):
         loader = JSONLoader(
