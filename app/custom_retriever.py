@@ -6,12 +6,19 @@ from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_community.vectorstores import Chroma
 from langchain_openai import OpenAIEmbeddings
 from rank_bm25 import BM25Okapi
+from pydantic import PrivateAttr
 
 class HybridAPIRetriever(BaseRetriever):
     """
-    Custom retriever that combines BM25 keyword search with Chroma vector similarity 
-    to retrieve the most relevant API descriptions.
+    Custom retriever that combines BM25 keyword search with Chroma vector similarity.
     """
+
+    _chroma_db: Chroma = PrivateAttr()  # Prevents Pydantic from pickling ChromaDB
+    k: int = 5  # Number of results to retrieve
+    _api_documents: List[Document] = PrivateAttr()
+    _api_descriptions: List[str] = PrivateAttr()
+    _api_ids: List[str] = PrivateAttr()
+    _bm25: BM25Okapi = PrivateAttr()
 
     def __init__(self, chroma_db: Chroma, k: int = 5):
         """
@@ -20,33 +27,53 @@ class HybridAPIRetriever(BaseRetriever):
         :param chroma_db: The Chroma vector database.
         :param k: Number of top results to return.
         """
+        super().__init__()
+        self._chroma_db = chroma_db  # Store Chroma as a private attribute
         self.k = k
-        self.chroma_db = chroma_db  # Use Chroma for vector search
 
         # Load API descriptions from Chroma metadata (used for BM25)
-        self.api_documents = chroma_db.get()["documents"]
-        self.api_descriptions = [doc["page_content"] for doc in self.api_documents]
-        self.api_ids = [doc["metadata"]["name"] for doc in self.api_documents]
+        api_data = self._chroma_db.get()
 
-        # BM25 for keyword-based search
-        self.bm25 = BM25Okapi([desc.split() for desc in self.api_descriptions])
+        if "documents" not in api_data or not api_data["documents"]:
+            raise ValueError("Chroma vector store is empty or improperly configured.")
+
+        # ✅ Convert raw documents into LangChain Document objects
+        self._api_documents = [
+            Document(
+                page_content=doc,
+                metadata=api_data["metadatas"][i] if api_data["metadatas"] else {}
+            ) 
+            for i, doc in enumerate(api_data["documents"])
+        ]
+
+        # ✅ Extract API IDs from "seq_num" (fallback to "API_X" if missing)
+        self._api_ids = [
+            str(doc.metadata.get("seq_num", f"API_{i}"))  
+            for i, doc in enumerate(self._api_documents)
+        ]
+
+        # ✅ Initialize BM25 model
+        self._api_descriptions = [doc.page_content for doc in self._api_documents]
+        self._bm25 = BM25Okapi([desc.split() for desc in self._api_descriptions])
+
 
     def _get_relevant_documents(self, query: str, *, run_manager: CallbackManagerForRetrieverRun) -> List[Document]:
         """
-        Retrieve relevant API descriptions based on a hybrid search method.
-
-        :param query: The input query string.
-        :return: A list of relevant API descriptions wrapped in Document objects.
+        Retrieve relevant API descriptions based on hybrid search (BM25 + Chroma).
         """
-
         # --- Step 1: Perform BM25 Keyword Search ---
-        bm25_scores = self.bm25.get_scores(query.split())
+        bm25_scores = self._bm25.get_scores(query.split())
         bm25_top_indices = np.argsort(bm25_scores)[::-1][:self.k]
-        bm25_results = [(self.api_ids[i], bm25_scores[i]) for i in bm25_top_indices]
+        bm25_results = [(self._api_ids[i], bm25_scores[i]) for i in bm25_top_indices]
 
         # --- Step 2: Perform Chroma Vector Search ---
-        vector_results = self.chroma_db.similarity_search(query, k=self.k)
-        vector_names = {doc.metadata["name"]: doc for doc in vector_results}
+        vector_results = self._chroma_db.similarity_search(query, k=self.k)
+
+        # ✅ Fix: Ensure vector search results use correct metadata key
+        vector_names = {}
+        for doc in vector_results:
+            seq_num = str(doc.metadata.get("seq_num", f"API_{vector_results.index(doc)}"))  # Use seq_num as ID
+            vector_names[seq_num] = doc  # Store properly indexed results
 
         # --- Step 3: Combine BM25 + Vector Results ---
         final_scores = {}
@@ -60,7 +87,20 @@ class HybridAPIRetriever(BaseRetriever):
         # --- Step 4: Convert to LangChain Documents ---
         retrieved_docs = []
         for api_name, score in ranked_apis[:self.k]:
-            api_info = vector_names.get(api_name)  # Get full API description from Chroma
-            retrieved_docs.append(Document(page_content=api_info.page_content, metadata={"name": api_name, "score": score}))
+            api_info = vector_names.get(api_name)  # Get document from vector results
+
+            # ✅ Ensure api_info is always a valid Document
+            if not isinstance(api_info, Document):  
+                api_info = Document(
+                    page_content="No description available." if api_info is None else str(api_info),
+                    metadata={"seq_num": api_name, "source": "Retrieved from ChromaDB"}
+                )
+
+            retrieved_docs.append(Document(
+                page_content=api_info.page_content,
+                metadata={"seq_num": api_name, "score": score, "source": api_info.metadata.get("source", "Unknown")}
+            ))
 
         return retrieved_docs
+
+
