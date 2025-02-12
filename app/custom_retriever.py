@@ -74,10 +74,20 @@ class HybridAPIRetriever(BaseRetriever):
         for doc in vector_results:
             seq_num = str(doc.metadata.get("seq_num", f"API_{vector_results.index(doc)}"))  # Use seq_num as ID
             vector_names[seq_num] = doc  # Store properly indexed results
-
+        
+        # Add BM25 results to vector_names if they do not exist
+        for api_name, _ in bm25_results:
+            if api_name not in vector_names:
+            # Find the corresponding document in _api_documents
+                doc_index = self._api_ids.index(api_name)
+                vector_names[api_name] = self._api_documents[doc_index]
+              
         # --- Step 3: Combine BM25 + Vector Results ---
         final_scores = {}
-        for api_name, bm25_score in bm25_results:
+        all_api_names = set([api_name for api_name, _ in bm25_results] + list(vector_names.keys()))
+
+        for api_name in all_api_names:
+            bm25_score = next((score for name, score in bm25_results if name == api_name), 0.0)
             vector_score = 1.0 if api_name in vector_names else 0.0  # Check if present in Chroma results
             final_scores[api_name] = bm25_score + vector_score
 
@@ -102,5 +112,3 @@ class HybridAPIRetriever(BaseRetriever):
             ))
 
         return retrieved_docs
-
-
