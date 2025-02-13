@@ -134,8 +134,11 @@ class RAG:
 
         # Prepare final list of unique documents
         relevant_docs = [doc_info['doc'] for doc_info in grouped_docs.values()]
-        unique_union_docs = unique_union_documents(relevant_docs)
         
+        # Sort the final result based on the total_score
+        sorted_docs = sorted(relevant_docs, key=lambda doc: doc.metadata.get('total_score', 0), reverse=True)
+        
+        unique_union_docs = unique_union_documents(sorted_docs)
         return [{'doc': doc, 'status': 1} for doc in unique_union_docs]
         
     def mq_default_retrieve_documents(self, queries):
