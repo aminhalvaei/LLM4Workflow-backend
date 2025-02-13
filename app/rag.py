@@ -85,25 +85,6 @@ class RAG:
         # Use our custom retriever with ChromaDB
         return HybridAPIRetriever(chroma_db=chroma_vectorstore, k=3)
     
-    def create_default_retriever(self) -> Union[EnsembleRetriever, VectorStoreRetriever]:
-        embeddings = OpenAIEmbeddings(disallowed_special=())
-        chroma_vectorstore = Chroma(persist_directory=self.persist_directory, collection_name=self.collection_name,
-                                    embedding_function=embeddings)
-        chroma_retriever = chroma_vectorstore.as_retriever(search_type="mmr", search_kwargs={"k": 3})
-
-        if self.documents:
-            bm25_retriever = BM25Retriever.from_documents(self.documents)
-            bm25_retriever.k = 2
-            chroma_retriever = chroma_vectorstore.as_retriever(search_kwargs={"k": 2})
-            # chroma_vectorstore = Chroma.from_documents(self.documents, embeddings, collection_name=self.collection_name,
-            #                                            persist_directory=self.persist_directory)
-            ensemble_retriever = EnsembleRetriever(
-                retrievers=[bm25_retriever, chroma_retriever], weights=[0.4, 0.6]
-            )
-            return ensemble_retriever
-
-        return chroma_retriever
-
 
     # This is the main method to use from outside of the RAG class to access the API Retrieval 
     def mq_retrieve_documents(self, queries):
@@ -141,14 +122,6 @@ class RAG:
         unique_union_docs = unique_union_documents(sorted_docs)
         return [{'doc': doc, 'status': 1} for doc in unique_union_docs]
         
-    def mq_default_retrieve_documents(self, queries):
-        relevant_docs = []
-        for query in queries:
-            docs_with_score = self.retriever.invoke(query)
-            for doc in docs_with_score:
-                relevant_docs.append(doc)
-        unique_union_docs = unique_union_documents(relevant_docs)
-        return [{'doc': doc, 'status': 1} for doc in unique_union_docs]
 
     def db_retrieve_documents(self, queries: List[str]):
         relevant_docs_with_query = defaultdict(list)

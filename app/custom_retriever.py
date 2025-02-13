@@ -37,7 +37,7 @@ class HybridAPIRetriever(BaseRetriever):
         if "documents" not in api_data or not api_data["documents"]:
             raise ValueError("Chroma vector store is empty or improperly configured.")
 
-        # ✅ Convert raw documents into LangChain Document objects
+        # Convert raw documents into LangChain Document objects
         self._api_documents = [
             Document(
                 page_content=doc,
@@ -46,13 +46,13 @@ class HybridAPIRetriever(BaseRetriever):
             for i, doc in enumerate(api_data["documents"])
         ]
 
-        # ✅ Extract API IDs from "seq_num" (fallback to "API_X" if missing)
+        # Extract API IDs from "seq_num" (fallback to "API_X" if missing)
         self._api_ids = [
             str(doc.metadata.get("seq_num", f"API_{i}"))  
             for i, doc in enumerate(self._api_documents)
         ]
 
-        # ✅ Initialize BM25 model
+        # Initialize BM25 model
         self._api_descriptions = [doc.page_content for doc in self._api_documents]
         self._bm25 = BM25Okapi([desc.split() for desc in self._api_descriptions])
 
@@ -69,7 +69,7 @@ class HybridAPIRetriever(BaseRetriever):
         # --- Step 2: Perform Chroma Vector Search ---
         vector_results = self._chroma_db.similarity_search(query, k=self.k)
 
-        # ✅ Fix: Ensure vector search results use correct metadata key
+        # Fix: Ensure vector search results use correct metadata key
         vector_names = {}
         for doc in vector_results:
             seq_num = str(doc.metadata.get("seq_num", f"API_{vector_results.index(doc)}"))  # Use seq_num as ID
@@ -88,7 +88,7 @@ class HybridAPIRetriever(BaseRetriever):
 
         for api_name in all_api_names:
             bm25_score = next((score for name, score in bm25_results if name == api_name), 0.0)
-            vector_score = 1.0 if api_name in vector_names else 0.0  # Check if present in Chroma results
+            vector_score = 5.0 if api_name in vector_names else 0.0  # Check if present in Chroma results
             final_scores[api_name] = bm25_score + vector_score
 
         # Sort APIs based on combined scores
@@ -99,7 +99,7 @@ class HybridAPIRetriever(BaseRetriever):
         for api_name, score in ranked_apis[:self.k]:
             api_info = vector_names.get(api_name)  # Get document from vector results
 
-            # ✅ Ensure api_info is always a valid Document
+            # Ensure api_info is always a valid Document
             if not isinstance(api_info, Document):  
                 api_info = Document(
                     page_content="No description available." if api_info is None else str(api_info),
