@@ -84,30 +84,66 @@ class RAG:
 
         # Use our custom retriever with ChromaDB
         return HybridAPIRetriever(chroma_db=chroma_vectorstore, k=3)
+    
+    def create_default_retriever(self) -> Union[EnsembleRetriever, VectorStoreRetriever]:
+        embeddings = OpenAIEmbeddings(disallowed_special=())
+        chroma_vectorstore = Chroma(persist_directory=self.persist_directory, collection_name=self.collection_name,
+                                    embedding_function=embeddings)
+        chroma_retriever = chroma_vectorstore.as_retriever(search_type="mmr", search_kwargs={"k": 3})
+
+        if self.documents:
+            bm25_retriever = BM25Retriever.from_documents(self.documents)
+            bm25_retriever.k = 2
+            chroma_retriever = chroma_vectorstore.as_retriever(search_kwargs={"k": 2})
+            # chroma_vectorstore = Chroma.from_documents(self.documents, embeddings, collection_name=self.collection_name,
+            #                                            persist_directory=self.persist_directory)
+            ensemble_retriever = EnsembleRetriever(
+                retrievers=[bm25_retriever, chroma_retriever], weights=[0.4, 0.6]
+            )
+            return ensemble_retriever
+
+        return chroma_retriever
 
 
     # This is the main method to use from outside of the RAG class to access the API Retrieval 
     def mq_retrieve_documents(self, queries):
         relevant_docs = []
+        
+        # Retrieve documents for each query
+        for query in queries:
+            docs_with_score = self.retriever.invoke(query)
+            relevant_docs.extend(docs_with_score)
+
+        # Group by document identifier and sum scores
+        grouped_docs = defaultdict(lambda: {'doc': None, 'total_score': 0})
+        
+        for doc in relevant_docs:
+            # Use a unique identifier from metadata
+            doc_key = doc.metadata.get("seq_num", doc.page_content)
+            doc_score = doc.metadata.get('score', 0)
+
+            if grouped_docs[doc_key]['doc'] is None:
+                grouped_docs[doc_key]['doc'] = doc
+            
+            # Sum the score for all occurrences
+            grouped_docs[doc_key]['total_score'] += doc_score
+
+        # Update metadata with total_score
+        for doc_info in grouped_docs.values():
+            doc_info['doc'].metadata['total_score'] = doc_info['total_score']
+
+        # Prepare final list of unique documents
+        relevant_docs = [doc_info['doc'] for doc_info in grouped_docs.values()]
+        unique_union_docs = unique_union_documents(relevant_docs)
+        
+        return [{'doc': doc, 'status': 1} for doc in unique_union_docs]
+        
+    def mq_default_retrieve_documents(self, queries):
+        relevant_docs = []
         for query in queries:
             docs_with_score = self.retriever.invoke(query)
             for doc in docs_with_score:
                 relevant_docs.append(doc)
-        # Group documents by their names and sum their scores
-        # TODO fix the total_sum summation bug
-        grouped_docs = defaultdict(lambda: {'doc': None, 'total_score': 0})
-        for doc in relevant_docs:
-            doc_name = doc.page_content
-            doc_score = doc.metadata.get('score', 0)
-            if grouped_docs[doc_name]['doc'] is None:
-                grouped_docs[doc_name]['doc'] = doc
-                grouped_docs[doc_name]['total_score'] += doc_score
-
-        # Update the metadata with the total score
-        for doc_info in grouped_docs.values():
-            doc_info['doc'].metadata['total_score'] = doc_info['total_score']
-
-        relevant_docs = [doc_info['doc'] for doc_info in grouped_docs.values()]
         unique_union_docs = unique_union_documents(relevant_docs)
         return [{'doc': doc, 'status': 1} for doc in unique_union_docs]
 
